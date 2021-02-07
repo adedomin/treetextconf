@@ -106,12 +106,13 @@ func TestParseConfig(t *testing.T) {
 	assertEqual(t, conf[0].value[1].name, "abc")
 
 	// leading whitespace, escaping compound type open, content start and end delimiter
-	conf, err = setupAndRunParser("'    four spaces:'\nanother element:'\n'# not a comment\n''")
+	conf, err = setupAndRunParser("'    four spaces:'\nanother element:'\n'# not a comment\n''\nx:'")
 	if err != nil { t.Error(err) }
 	assertEqual(t, conf[0].name, "    four spaces:")
 	assertEqual(t, conf[1].name, "another element:")
 	assertEqual(t, conf[2].name, "# not a comment")
 	assertEqual(t, conf[3].name, "")
+	assertEqual(t, conf[4].name, "x:")
 
 	// Content start delimiter only
 	conf, err = setupAndRunParser("'\n     '")
