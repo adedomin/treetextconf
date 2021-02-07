@@ -127,4 +127,29 @@ func TestParseConfig(t *testing.T) {
 	// Too many closes
 	conf, err = setupAndRunParser("test 123:\n  xyz\n:\n  abc\n:")
 	if err == nil { t.Errorf("Expected an error for too many closing (:).") }
+
+	// Test Height Limit
+	hlimit := HeightLimit(3)
+	parser, err := NewParser(strings.NewReader("a:\nb:\nc:\nd:\n:\n:\n:\n:"), hlimit)
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = parser.ParseConfig()
+	if err == nil {
+		t.Error("Expected Error due to limit on the height of the tree being exceeded.")
+	}
+
+	// Test Size (in bytes) limit
+	slimit := SizeLimit(25)
+	parser, err = NewParser(strings.NewReader("a bunch of words\nmore words\n more words"), slimit)
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = parser.ParseConfig()
+	if err == nil {
+		t.Errorf(
+			"Expected Error due to input being too large: expected: %d, actual: %d.",
+			25, parser.size,
+		)
+	}
 }

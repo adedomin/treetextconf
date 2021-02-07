@@ -45,7 +45,7 @@ type ConfigError struct {
 
 func (e *ConfigError) Error() string {
 	return fmt.Sprintf(
-		"line:%d col:%d Error: %s\n",
+		"line:%d col:%d Error: %s",
 		e.line, e.col, e.context,
 	)
 }
@@ -172,7 +172,8 @@ func (p *Parser) recursiveParse(c *Config, height int) error {
 	if err = p.checkHeight(height); err != nil {
 		return err
 	}
-	for err = p.nextLine(); err != io.EOF; err = p.nextLine() {
+	
+	for err = p.nextLine(); err == nil; err = p.nextLine() {
 		i := 0
 		// find start of content
 		for ; i < len(p.line); i++ {
