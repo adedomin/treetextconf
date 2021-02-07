@@ -89,7 +89,7 @@ type Parser struct {
 	sizeLimit int
 }
 
-func NewParser(content io.Reader, options ...ParserOptFunc) *Parser {
+func NewParser(content io.Reader, options ...ParserOptFunc) (*Parser, error) {
 	h := &Parser{
 		content: bufio.NewReader(content),
 		lineno: 0,
@@ -99,10 +99,12 @@ func NewParser(content io.Reader, options ...ParserOptFunc) *Parser {
 	}
 
 	for _, option := range options {
-		option(h)
+		if err := option(h); err != nil {
+			return nil, err
+		}
 	}
 
-	return h
+	return h, nil
 }
 
 func (p *Parser) checkHeight(height int) error {
@@ -200,8 +202,12 @@ func (p *Parser) recursiveParse(c *Config, height int) error {
 		end := len(p.line)
 		endToken := p.line[end-1]
 		switch (endToken) {
-		case '\'', ':':
+		case ':':
 			end = end - 1
+		case '\'':
+			if start != end {
+				end = end -1
+			}
 		}
 		
 		// find name: value pair start (": ")
