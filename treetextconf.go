@@ -28,15 +28,19 @@ import (
 	"strings"
 )
 
+// A Configuration tree node
+// Contains a name and associated nodes with their own names and values
 type Config struct {
 	name string
 	value []*Config
 }
 
+// Add a Config to a value of another
 func (c *Config) addValue(v *Config) {
 	c.value = append(c.value, v)
 }
 
+// Error with a message, line and column context
 type ConfigError struct {
 	context string
 	line int
@@ -50,6 +54,8 @@ func (e *ConfigError) Error() string {
 	)
 }
 
+// A function that takes a parser being constructed.
+// Returns error for invalid options
 type ParserOptFunc func(p *Parser) error
 
 type ParserOptFuncError string
@@ -58,6 +64,8 @@ func (e ParserOptFuncError) Error() string {
 	return string(e)
 }
 
+// Sets a User controlled tree height to a new parser
+// example: treetextconf.NewParser(file, HeightLimit(10))
 func HeightLimit(limit int) ParserOptFunc {
 	return func(p *Parser) error {
 		if limit > 0 {
@@ -69,6 +77,9 @@ func HeightLimit(limit int) ParserOptFunc {
 	}
 }
 
+
+// Sets a limit on how large (in bytes) a configuration can be.
+// example: treetextconf.NewParser(file, SizeLimit(1024 * 16))
 func SizeLimit(limit int) ParserOptFunc {
 	return func(p *Parser) error {
 		if limit > 0 {
@@ -80,6 +91,7 @@ func SizeLimit(limit int) ParserOptFunc {
 	}
 }
 
+// Parser that stores the context, state and a Reader of the file being parsed
 type Parser struct {
 	content *bufio.Reader
 	line []byte
@@ -89,6 +101,11 @@ type Parser struct {
 	sizeLimit int
 }
 
+// Constructs a new parser with defaults.
+// You can configure heightLimit and sizeLimit by passing the functions returned by:
+//
+//   - HeightLimit() maximum depth the parser will go.
+//   - SizeLimit()   maxium size (in bytes) that the parser will read.
 func NewParser(content io.Reader, options ...ParserOptFunc) (*Parser, error) {
 	h := &Parser{
 		content: bufio.NewReader(content),
@@ -109,7 +126,7 @@ func NewParser(content io.Reader, options ...ParserOptFunc) (*Parser, error) {
 
 func (p *Parser) checkHeight(height int) error {
 	if p.heightLimit != -1 {
-		if height >= p.heightLimit {
+		if height > p.heightLimit {
 			return &ConfigError{
 				context: fmt.Sprintf("tree height exceeds limit: %d", p.heightLimit),
 				line: p.lineno,
@@ -167,12 +184,12 @@ func (p *Parser) nextLine() error {
 	return nil
 }
 
-func (p *Parser) recursiveParse(c *Config, height int) error {
+func (p *Parser) iterParse(root *Config) error {
 	var err error
-	if err = p.checkHeight(height); err != nil {
-		return err
-	}
+	stack := []*Config{root}
+	c := stack[len(stack) - 1]
 	
+out:
 	for err = p.nextLine(); err == nil; err = p.nextLine() {
 		i := 0
 		// find start of content
@@ -228,12 +245,19 @@ func (p *Parser) recursiveParse(c *Config, height int) error {
 		switch (endToken) {
 		case ':':
 			if start == end && !foundContentStart {
-				return nil
+				stack = stack[:len(stack)-1]
+				if (len(stack) == 0) {
+					break out // too many '\n:'
+				}
+				c = stack[len(stack)-1]
 			} else {
 				c.addValue(newConf)
 				newConf.name = string(p.line[start:end])
-				if err = p.recursiveParse(newConf, height + 1); err != nil {
-					return err
+				stack = append(stack, newConf)
+				c = newConf
+				err = p.checkHeight(len(stack)-1)
+				if err != nil {
+					break out // tree too big
 				}
 			}
 		default:
@@ -251,36 +275,39 @@ func (p *Parser) recursiveParse(c *Config, height int) error {
 		}
 	}
 
-	if err == io.EOF && height > 0 {
+	if err == io.EOF && len(stack) > 1 {
 		return &ConfigError{
 			context: "Unterminated compound group, not enough ':'",
 			line: p.lineno,
 			col: 0,
 		}
-	} else {
+	} else if len(stack) == 0 {
+		return &ConfigError{
+			context: "Too many compound terminators ':'",
+			line: p.lineno,
+			col: 0,
+		}
+	} else if err != io.EOF {
 		return err
+	} else {
+		return nil
 	}
 }
 
+// Executes the constructed parser returning a config.
+// config.value will contain your configuration file's parsed contents.
+// config.name == "__root__" which is the default root node, even if the file
+// is empty.
 func (p *Parser) ParseConfig() (*Config, error) {
 	root := &Config{
 		name: "__root__",
 	}
 
-	err := p.recursiveParse(root, 0)
-	if err == nil {
-		return root, &ConfigError{
-			context: "Too many compound terminators ':'",
-			line: p.lineno,
-			col: 0,
-		}
-	} else if err != nil && err != io.EOF {
-		return root, err
-	} else {
-		return root, nil
-	}
+	err := p.iterParse(root)
+	return root, err
 }
 
+// Tool to print what your configuration contains, in pre-order traversal
 func DebugPrintConfig(root *Config, depth int) {
 	var padding strings.Builder
 	for i := 0; i < depth; i++ {
@@ -292,3 +319,5 @@ func DebugPrintConfig(root *Config, depth int) {
 		DebugPrintConfig(v, depth+1)
 	}
 }
+
+// TODO: Add Iterator?

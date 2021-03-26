@@ -81,44 +81,62 @@ func setupAndRunParser(teststr string) ([]*Config, error) {
 func TestParseConfig(t *testing.T) {
 	// Basic Name: Value pair
 	conf, err := setupAndRunParser("test: 123")
-	if err != nil { t.Error(err) }
-	assertEqual(t, conf[0].name, "test")
-	assertEqual(t, conf[0].value[0].name, "123")
+	if err != nil {
+		t.Error(err)
+	} else {
+		assertEqual(t, conf[0].name, "test")
+		assertEqual(t, conf[0].value[0].name, "123")
+	}
 
 	// Escaped Name: Value Pair
 	conf, err = setupAndRunParser("test: 123:\n:\n")
-	if err != nil { t.Error(err) }
-	assertEqual(t, conf[0].name, "test: 123")
-	assertEqual(t, len(conf[0].value), 0)
+	if err != nil {
+		t.Error(err)
+	} else {
+		assertEqual(t, conf[0].name, "test: 123")
+		assertEqual(t, len(conf[0].value), 0)
+	}
 
 	// Single Value
 	conf, err = setupAndRunParser("test 123")
-	if err != nil { t.Error(err) }
-	assertEqual(t, conf[0].name, "test 123")
-	assertEqual(t, len(conf[0].value), 0)
+	if err != nil {
+		t.Error(err)
+	} else {
+		assertEqual(t, conf[0].name, "test 123")
+		assertEqual(t, len(conf[0].value), 0)
+	}
 
 	// Multiple Value
 	conf, err = setupAndRunParser("test 123:\n  xyz\n  abc\n:")
-	if err != nil { t.Error(err) }
-	assertEqual(t, conf[0].name, "test 123")
-	assertEqual(t, len(conf[0].value), 2)
-	assertEqual(t, conf[0].value[0].name, "xyz")
-	assertEqual(t, conf[0].value[1].name, "abc")
+	if err != nil {
+		t.Error(err)
+	} else {
+		assertEqual(t, conf[0].name, "test 123")
+		assertEqual(t, len(conf[0].value), 2)
+		assertEqual(t, conf[0].value[0].name, "xyz")
+		assertEqual(t, conf[0].value[1].name, "abc")
+	}
 
 	// leading whitespace, escaping compound type open, content start and end delimiter
 	conf, err = setupAndRunParser("'    four spaces:'\nanother element:'\n'# not a comment\n''\nx:'")
-	if err != nil { t.Error(err) }
-	assertEqual(t, conf[0].name, "    four spaces:")
-	assertEqual(t, conf[1].name, "another element:")
-	assertEqual(t, conf[2].name, "# not a comment")
-	assertEqual(t, conf[3].name, "")
-	assertEqual(t, conf[4].name, "x:")
+	if err != nil {
+		t.Error(err)
+	} else {
+		assertEqual(t, conf[0].name, "    four spaces:")
+		assertEqual(t, conf[1].name, "another element:")
+		assertEqual(t, conf[2].name, "# not a comment")
+		assertEqual(t, conf[3].name, "")
+		assertEqual(t, conf[4].name, "x:")
+	}
 
 	// Content start delimiter only
 	conf, err = setupAndRunParser("'\n     '")
-	if err != nil { t.Error(err) }
-	assertEqual(t, conf[0].name, "")
-	assertEqual(t, conf[1].name, "")
+	if err != nil {
+		t.Error(err)
+	} else {
+		assertEqual(t, conf[0].name, "")
+		assertEqual(t, conf[1].name, "")
+	}
 
 	// Missing compound close
 	conf, err = setupAndRunParser("test 123:\n  xyz\n  abc\n")
@@ -136,7 +154,18 @@ func TestParseConfig(t *testing.T) {
 	}
 	_, err = parser.ParseConfig()
 	if err == nil {
-		t.Error("Expected Error due to limit on the height of the tree being exceeded.")
+		t.Errorf("Expected Error due to limit on the height of the tree being exceeded.")
+	}
+
+	// Test Height Limit
+	hlimit = HeightLimit(4)
+	parser, err = NewParser(strings.NewReader("a:\nb:\nc:\nd:\n:\n:\n:\n:"), hlimit)
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = parser.ParseConfig()
+	if err != nil {
+		t.Error(err)
 	}
 
 	// Test Size (in bytes) limit
